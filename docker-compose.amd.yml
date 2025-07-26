@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DOCKER_ENV=true
+    volumes:
+      # Mount your local app files to the container for development
+      - ./:/app:cached
+    networks:
+      - agentic-tasks-network
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Installing Node.js dependencies...' &&
+        for dir in /app/MCP-StdIO/*/ ; do
+          if [ -f \"$$dir/package.json\" ]; then
+            echo \"Installing dependencies in $$dir\" &&
+            cd \"$$dir\" &&
+            npm install;
+          fi
+        done 
+        python /app/src/main.py
+      "
+  
+  # Include Ollama service with AMD GPU support via ROCm
+  ollama:
+    image: ollama/ollama:rocm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - agentic-tasks-network
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=10.3.0  # Adjust for your AMD GPU
+      - OLLAMA_NUM_PARALLEL=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://ollama:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    # Custom entrypoint to pull models before starting the server
+    entrypoint: >
+      /bin/sh -c "
+        apt-get update && apt-get install -y curl || apk add --no-cache curl || true;
+        ollama serve &
+        echo 'Starting Ollama server (AMD GPU/ROCm mode)...' &&
+        sleep 5 &&
+        echo 'Pulling mistral model...' &&
+        ollama pull mistral &&
+        echo 'Model pulled successfully!' &&
+        wait
+      "
+
+networks:
+  agentic-tasks-network:
+    driver: bridge
+
+volumes:
+  ollama_data:

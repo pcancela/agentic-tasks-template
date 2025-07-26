@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "agentic-tasks-template"
+version = "0.1.0"
+description = "Agentic solutions template"
+authors = ["Pedro Cancela <cancela17@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"  # This accepts any 3.12.x version
+uvicorn = "^0.34.3"
+crewai = "^0.140.0"
+crewai-tools = {extras = ["mcp"], version = "^0.55.0"}
+pydantic = "^2.11.5"
+fastapi = "^0.115.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

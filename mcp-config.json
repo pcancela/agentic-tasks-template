@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "website-fetcher": {
+      "type": "StdIO",
+      "command": "node",
+      "args": ["/app/MCP-StdIO/example/website-fetcher.js"]
+    }
+  }
+}
