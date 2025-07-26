@@ -20,39 +20,52 @@ This is a simple FastAPI server that uses CrewAI to execute tasks with the help 
    - `mcp-config.json` (for Docker environment)
    - `mcp-config.local.json` (for local Windows environment)
 
+
 ## Running the Application
 
+> **⚠️ NOTE:**
+> The provided `run.ps1` script is only compatible with **Windows** systems. If you are using Linux or macOS, you must run the application manually or adapt the script to a Bash (`.sh`) version.
+
 ### Using the Helper Script (Recommended)
-Use the PowerShell script to easily run the application in different modes:
+
+Use the PowerShell script to easily run the application in different modes (**Windows only**):
 
 #### Local Mode (default)
+
 ```powershell
-.\run.ps1
+# Windows only
+./run.ps1
 # or explicitly specify:
-.\run.ps1 -mode local
+./run.ps1 -mode local
 ```
 
 #### Docker Mode with GPU Auto-Detection
+
 ```powershell
-.\run.ps1 -mode docker
+# Windows only
+./run.ps1 -mode docker
 # Automatically detects and uses available GPU (NVIDIA/AMD) or falls back to CPU
 ```
 
 #### Docker Mode with Specific GPU Configuration
+
 ```powershell
+# Windows only
 # Force NVIDIA GPU mode
-.\run.ps1 -mode docker -gpu nvidia
+./run.ps1 -mode docker -gpu nvidia
 
 # Force AMD GPU mode  
-.\run.ps1 -mode docker -gpu amd
+./run.ps1 -mode docker -gpu amd
 
 # Force CPU-only mode
-.\run.ps1 -mode docker -gpu cpu
+./run.ps1 -mode docker -gpu cpu
 ```
 
 #### Docker Rebuild (clean build)
+
 ```powershell
-.\run.ps1 -mode docker-rebuild -gpu auto
+# Windows only
+./run.ps1 -mode docker-rebuild -gpu auto
 ```
 
 ### LLM Model Configuration
@@ -60,18 +73,20 @@ Use the PowerShell script to easily run the application in different modes:
 The application supports configurable LLM models through Ollama:
 
 #### Using Command Line Parameters
+
 ```powershell
+# Windows only
 # Use default mistral model
-.\run.ps1
+./run.ps1
 
 # Use llama3 model
-.\run.ps1 -model llama3
+./run.ps1 -model llama3
 
 # Use codellama model
-.\run.ps1 -model codellama
+./run.ps1 -model codellama
 
 # Use any other Ollama model
-.\run.ps1 -model phi3
+./run.ps1 -model phi3
 ```
 
 #### Using Environment Variables
