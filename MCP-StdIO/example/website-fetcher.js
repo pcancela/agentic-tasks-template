@@ -13,6 +13,9 @@ const https = require('https');
 const http = require('http');
 const zlib = require('zlib');
 const { URL } = require('url');
+const cheerio = require('cheerio');
+const { Readability } = require('@mozilla/readability');
+const { JSDOM } = require('jsdom');
 
 // MCP Server Implementation
 class WebsiteFetcherMCPServer {
@@ -186,6 +189,35 @@ class WebsiteFetcherMCPServer {
                         },
                         required: ["url"]
                     }
+                },
+                {
+                    name: "fetch_curated_content",
+                    description: "Fetch and extract curated content from a website, removing ads, navigation, and other non-content elements",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            url: {
+                                type: "string",
+                                description: "The URL of the website to fetch"
+                            },
+                            extractionType: {
+                                type: "string",
+                                description: "Type of content to extract: 'article' for blog/news content, 'structured' for specific elements",
+                                enum: ["article", "structured"],
+                                default: "article"
+                            },
+                            selectors: {
+                                type: "object",
+                                description: "CSS selectors to extract specific elements when using 'structured' type",
+                                properties: {
+                                    title: { type: "string" },
+                                    content: { type: "string" },
+                                    metadata: { type: "array", items: { type: "string" } }
+                                }
+                            }
+                        },
+                        required: ["url"]
+                    }
                 }
             ]
         };
@@ -202,6 +234,12 @@ class WebsiteFetcherMCPServer {
                     return await this.fetchWebsiteWithHeaders(args.url, args.headers);
                 case "fetch_api_endpoint":
                     return await this.fetchApiEndpoint(args.url, args.method, args.headers, args.body);
+                case "fetch_curated_content":
+                    return await this.fetchCuratedContent(
+                        args.url,
+                        args.extractionType,
+                        args.selectors
+                    );
                 default:
                     throw new Error(`Unknown tool: ${name}`);
             }
@@ -288,6 +326,70 @@ class WebsiteFetcherMCPServer {
             };
         } else {
             throw new Error(`API request failed: HTTP ${response.status} - ${response.data}`);
+        }
+    }
+
+    async extractArticleContent(html, url) {
+        const dom = new JSDOM(html, { url });
+        const reader = new Readability(dom.window.document);
+        const article = reader.parse();
+        
+        return {
+            title: article.title,
+            content: article.textContent,
+            excerpt: article.excerpt,
+            siteName: article.siteName,
+            byline: article.byline
+        };
+    }
+
+    async extractStructuredContent(html, selectors) {
+        const $ = cheerio.load(html);
+        const result = {};
+        
+        if (selectors.title) {
+            result.title = $(selectors.title).text().trim();
+        }
+        
+        if (selectors.content) {
+            result.content = $(selectors.content).text().trim();
+        }
+        
+        if (selectors.metadata) {
+            result.metadata = {};
+            selectors.metadata.forEach(selector => {
+                const el = $(selector);
+                const key = el.attr('property') || el.attr('name') || selector;
+                result.metadata[key] = el.text().trim() || el.attr('content');
+            });
+        }
+        
+        return result;
+    }
+
+    async fetchCuratedContent(url, extractionType = 'article', selectors = {}) {
+        const response = await this.makeRequest(url);
+        
+        if (response.status >= 200 && response.status < 300) {
+            let extractedContent;
+            
+            if (extractionType === 'article') {
+                extractedContent = await this.extractArticleContent(response.data, url);
+            } else {
+                extractedContent = await this.extractStructuredContent(response.data, selectors);
+            }
+            
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify(extractedContent, null, 2)
+                    }
+                ],
+                isError: false
+            };
+        } else {
+            throw new Error(`Failed to fetch website: HTTP ${response.status}`);
         }
     }
 

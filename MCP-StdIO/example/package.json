@@ -5,8 +5,12 @@
   "main": "website-fetcher.js",
   "type": "commonjs",
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "fast-xml-parser": "^4.3.2"
+    "@mozilla/readability": "^0.6.0",
+    "cheerio": "^1.1.2",
+    "dotenv": "^16.6.1",
+    "fast-xml-parser": "^4.3.2",
+    "jsdom": "^26.1.0",
+    "readability": "^0.1.0"
   },
   "scripts": {
     "start": "node website-fetcher.js"
