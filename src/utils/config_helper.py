@@ -39,3 +39,8 @@ class ConfigHelper:
         else:
             # Default for local development
             return "http://localhost:11434"
+    
+    @staticmethod
+    def get_ollama_model() -> str:
+        """Get the Ollama model name from environment variable or use default."""
+        return os.getenv("OLLAMA_MODEL", "mistral")

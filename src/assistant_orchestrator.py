@@ -1,8 +1,8 @@
 import asyncio
 import sys
 import os
-
 from crewai import LLM, Agent, Task, Crew
+
 from crewai_tools import MCPServerAdapter
 from configuration.mcp_config import MCPConfig
 from utils.log_helper import LogHelper
@@ -12,8 +12,7 @@ from utils.config_helper import ConfigHelper
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-# Get model from environment variable or use default
-model_name = os.getenv("OLLAMA_MODEL", "mistral")
+model_name = ConfigHelper.get_ollama_model()
 
 llm = LLM(
     model=f"ollama/{model_name}",
