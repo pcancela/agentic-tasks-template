@@ -10,6 +10,7 @@ services:
     environment:
       - PORT=4000
       - DOCKER_ENV=true
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
     volumes:
       # Mount your local app files to the container for development
       - ./:/app:cached
@@ -48,6 +49,7 @@ services:
     environment:
       - HSA_OVERRIDE_GFX_VERSION=10.3.0  # Adjust for your AMD GPU
       - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://ollama:11434/"]
       interval: 10s
@@ -61,8 +63,8 @@ services:
         ollama serve &
         echo 'Starting Ollama server (AMD GPU/ROCm mode)...' &&
         sleep 5 &&
-        echo 'Pulling mistral model...' &&
-        ollama pull mistral &&
+        echo 'Pulling ${OLLAMA_MODEL:-mistral} model...' &&
+        ollama pull ${OLLAMA_MODEL:-mistral} &&
         echo 'Model pulled successfully!' &&
         wait
       "
