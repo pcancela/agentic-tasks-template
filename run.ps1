@@ -43,21 +43,33 @@ function DetectGPU {
     # Check Docker GPU support
     $dockerGPU = $false
     try {
-        docker run --rm --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $dockerGPU = $true
-            Write-Host "✓ Docker GPU support available" -ForegroundColor Green
+        # Check if docker command is available before running it
+        if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+            # Try to run a GPU test container
+            try {
+                docker run --rm --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    $dockerGPU = $true
+                    Write-Host "✓ Docker GPU support available" -ForegroundColor Green
+                }
+            } catch {
+                Write-Host "! Docker GPU test failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "! Docker not found, GPU support check skipped" -ForegroundColor Yellow
         }
     } catch {
         Write-Host "! Docker GPU support not available" -ForegroundColor Yellow
     }
     
+    # Ensure we're returning a proper hashtable, not an array
+    $result = [ordered]@{}
+    $result.NVIDIA = $nvidiaGPU -and $dockerGPU
+    $result.AMD = $amdGPU
+    $result.CPU = $true
+    
     # Return detection results
-    return @{
-        NVIDIA = $nvidiaGPU -and $dockerGPU
-        AMD = $amdGPU
-        CPU = $true
-    }
+    return $result
 }
 
 function UpdateMCPConfigPaths {
@@ -162,8 +174,19 @@ function InstallMCPDependencies {
 function SelectDockerCompose {
     param (
         [string]$gpuMode,
-        [hashtable]$gpuDetection
+        $gpuDetection
     )
+    
+    # Defensive check - ensure gpuDetection is a hashtable with required properties
+    if ($null -eq $gpuDetection -or $gpuDetection -isnot [hashtable] -or 
+        -not ($gpuDetection.ContainsKey('NVIDIA') -and $gpuDetection.ContainsKey('AMD') -and $gpuDetection.ContainsKey('CPU'))) {
+        Write-Host "Warning: Invalid GPU detection data. Using fallback configuration." -ForegroundColor Yellow
+        $gpuDetection = @{
+            NVIDIA = $false
+            AMD = $false
+            CPU = $true
+        }
+    }
     
     $composeFile = "docker-compose.yml"
     $description = "CPU mode"
@@ -224,7 +247,17 @@ if ($mode -eq "docker") {
     $composeFile = SelectDockerCompose -gpuMode $gpu -gpuDetection $gpuDetection
     
     Write-Host "Building and starting Docker containers..." -ForegroundColor Yellow
-    docker-compose -f $composeFile up --build
+    # Try the new 'docker compose' command first, fall back to 'docker-compose' if it fails
+    if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+        docker compose -f $composeFile up --build
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Falling back to docker-compose..." -ForegroundColor Yellow
+            docker-compose -f $composeFile up --build
+        }
+    } else {
+        Write-Host "Docker is not installed or not in PATH" -ForegroundColor Red
+        exit 1
+    }
 }
 elseif ($mode -eq "docker-rebuild") {
     PrintHeader "Rebuilding and running Docker containers"
@@ -238,9 +271,30 @@ elseif ($mode -eq "docker-rebuild") {
     $composeFile = SelectDockerCompose -gpuMode $gpu -gpuDetection $gpuDetection
     
     Write-Host "Rebuilding Docker containers from scratch..." -ForegroundColor Yellow
-    docker-compose -f $composeFile down
-    docker-compose -f $composeFile build --no-cache
-    docker-compose -f $composeFile up
+    # Try the new 'docker compose' command first, fall back to 'docker-compose' if it fails
+    if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+        # Bring down containers
+        docker compose -f $composeFile down
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Falling back to docker-compose..." -ForegroundColor Yellow
+            docker-compose -f $composeFile down
+        }
+        
+        # Rebuild containers
+        docker compose -f $composeFile build --no-cache
+        if ($LASTEXITCODE -ne 0) {
+            docker-compose -f $composeFile build --no-cache
+        }
+        
+        # Start containers
+        docker compose -f $composeFile up
+        if ($LASTEXITCODE -ne 0) {
+            docker-compose -f $composeFile up
+        }
+    } else {
+        Write-Host "Docker is not installed or not in PATH" -ForegroundColor Red
+        exit 1
+    }
 }
 elseif ($mode -eq "local") {
     PrintHeader "Running in local mode"
@@ -341,7 +395,7 @@ else {
     Write-Host "  amd             - Force AMD GPU mode" -ForegroundColor Gray
     Write-Host "  cpu             - Force CPU-only mode" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "Model Options (for local mode):" -ForegroundColor Cyan
+    Write-Host "Model Options (for both local and Docker modes):" -ForegroundColor Cyan
     Write-Host "  mistral         - Mistral 7B model (default)" -ForegroundColor Gray
     Write-Host "  llama3          - Llama 3 model" -ForegroundColor Gray
     Write-Host "  codellama       - Code Llama model" -ForegroundColor Gray
@@ -353,8 +407,9 @@ else {
     Write-Host "Examples:" -ForegroundColor Cyan
     Write-Host "  .\run.ps1                                    # Local mode with mistral" -ForegroundColor Gray
     Write-Host "  .\run.ps1 -model llama3                     # Local mode with llama3" -ForegroundColor Gray
-    Write-Host "  .\run.ps1 -mode docker                      # Docker with auto GPU detection" -ForegroundColor Gray
-    Write-Host "  .\run.ps1 -mode docker -gpu nvidia          # Docker with NVIDIA GPU" -ForegroundColor Gray
+    Write-Host "  .\run.ps1 -mode docker                      # Docker with auto GPU detection using mistral" -ForegroundColor Gray
+    Write-Host "  .\run.ps1 -mode docker -gpu nvidia          # Docker with NVIDIA GPU using mistral" -ForegroundColor Gray
+    Write-Host "  .\run.ps1 -mode docker -model codellama     # Docker with codellama model" -ForegroundColor Gray
     Write-Host "  .\run.ps1 -model codellama                  # Local mode with codellama" -ForegroundColor Gray
     exit 1
 }
