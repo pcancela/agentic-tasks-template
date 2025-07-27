@@ -2,7 +2,7 @@
 
 ## FastAPI server using CrewAI and MCP servers and tools
 
-This is a simple FastAPI server that uses CrewAI to execute tasks with the help of MCP tools.
+This starter kit provides a robust foundation for building AI-powered applications. It combines FastAPI, CrewAI, and MCP tools into a production-ready template, allowing developers to quickly bootstrap their projects without dealing with boilerplate code or complex integrations. Use this as your launching pad for developing sophisticated AI agent applications.
 
 ## Requirements
 - [Python](https://www.python.org/downloads/release/python-31210/) as the programming language
@@ -154,3 +154,39 @@ The correct configuration file is automatically selected based on the `DOCKER_EN
 
 Interactive API docs will be accessible at:
 http://localhost:4000/docs
+
+## Useful Documentation
+
+### Core Technologies
+- [CrewAI Documentation](https://docs.crewai.com/en/introduction) - Main framework for AI agent orchestration
+- [FastAPI Documentation](https://fastapi.tiangolo.com/) - Modern web framework for building APIs
+- [Ollama Documentation](https://ollama.ai/docs) - Local LLM runtime and model management
+- [Poetry Documentation](https://python-poetry.org/docs/) - Python dependency management
+
+### AI and Machine Learning
+- [Hugging Face Models](https://huggingface.co/models) - Pre-trained models and datasets
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/overview/) - Tool integration protocol
+
+### Tutorials and Examples
+- [CrewAI Docs](https://docs.crewai.com/en/introduction) - CrewAI Documentation
+- [FastAPI Best Practices](https://fastapi.tiangolo.com/tutorial/) - Recommended patterns
+- [Ollama Model Library](https://ollama.ai/library) - Available LLM models
+- ...⌛
+
+## Project Roadmap
+
+### Cross-Platform Support
+- [ ] Convert PowerShell scripts to cross-platform shell scripts
+- [ ] Create separate startup scripts for Linux/macOS
+- [ ] ...⌛
+
+### Agentic Scenarios
+- [ ] Add pre-configured agent scenarios:
+  - [ ] Research Assistant
+  - ...⌛
+
+### Future Considerations
+- Multi-model support (running multiple models simultaneously)
+- Distributed agent deployment
+- Integration with cloud services
+- Custom model fine-tuning support

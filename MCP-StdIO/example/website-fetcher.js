@@ -13,6 +13,9 @@ const https = require('https');
 const http = require('http');
 const zlib = require('zlib');
 const { URL } = require('url');
+const cheerio = require('cheerio');
+const { Readability } = require('@mozilla/readability');
+const { JSDOM } = require('jsdom');
 
 // MCP Server Implementation
 class WebsiteFetcherMCPServer {
@@ -124,13 +127,38 @@ class WebsiteFetcherMCPServer {
             tools: [
                 {
                     name: "fetch_website",
-                    description: "Fetch and retrieve the HTML content of a website",
+                    description: "Fetch and retrieve the HTML content of a website with optional content extraction",
                     inputSchema: {
                         type: "object",
                         properties: {
                             url: {
                                 type: "string",
                                 description: "The URL of the website to fetch"
+                            },
+                            extractContent: {
+                                type: "boolean",
+                                description: "Whether to extract and clean article content using Readability",
+                                default: true
+                            },
+                            extractionType: {
+                                type: "string",
+                                description: "Type of content to extract: 'article' for blog/news content, 'structured' for specific elements",
+                                enum: ["article", "structured"],
+                                default: "article"
+                            },
+                            selectors: {
+                                type: "object",
+                                description: "CSS selectors to extract specific elements when using 'structured' type",
+                                properties: {
+                                    title: { type: "string" },
+                                    content: { type: "string" },
+                                    metadata: { type: "array", items: { type: "string" } }
+                                }
+                            },
+                            returnRawHtml: {
+                                type: "boolean",
+                                description: "Whether to include the raw HTML in the response",
+                                default: false
                             }
                         },
                         required: ["url"]
@@ -138,7 +166,7 @@ class WebsiteFetcherMCPServer {
                 },
                 {
                     name: "fetch_website_with_headers",
-                    description: "Fetch website content with custom headers",
+                    description: "Fetch website content with custom headers and optional content extraction",
                     inputSchema: {
                         type: "object",
                         properties: {
@@ -152,6 +180,31 @@ class WebsiteFetcherMCPServer {
                                 additionalProperties: {
                                     type: "string"
                                 }
+                            },
+                            extractContent: {
+                                type: "boolean",
+                                description: "Whether to extract and clean article content using Readability",
+                                default: true
+                            },
+                            extractionType: {
+                                type: "string",
+                                description: "Type of content to extract: 'article' for blog/news content, 'structured' for specific elements",
+                                enum: ["article", "structured"],
+                                default: "article"
+                            },
+                            selectors: {
+                                type: "object",
+                                description: "CSS selectors to extract specific elements when using 'structured' type",
+                                properties: {
+                                    title: { type: "string" },
+                                    content: { type: "string" },
+                                    metadata: { type: "array", items: { type: "string" } }
+                                }
+                            },
+                            returnRawHtml: {
+                                type: "boolean",
+                                description: "Whether to include the raw HTML in the response",
+                                default: false
                             }
                         },
                         required: ["url"]
@@ -182,6 +235,17 @@ class WebsiteFetcherMCPServer {
                             body: {
                                 type: "string",
                                 description: "Request body for POST/PUT requests"
+                            },
+                            responseType: {
+                                type: "string",
+                                description: "How to process the response: 'json' (parse as JSON), 'text' (return as text), 'auto' (auto-detect)",
+                                enum: ["json", "text", "auto"],
+                                default: "auto"
+                            },
+                            timeout: {
+                                type: "number",
+                                description: "Request timeout in milliseconds",
+                                default: 30000
                             }
                         },
                         required: ["url"]
@@ -197,11 +261,31 @@ class WebsiteFetcherMCPServer {
         try {
             switch (name) {
                 case "fetch_website":
-                    return await this.fetchWebsite(args.url);
+                    return await this.fetchWebsite(
+                        args.url, 
+                        args.extractContent, 
+                        args.extractionType, 
+                        args.selectors, 
+                        args.returnRawHtml
+                    );
                 case "fetch_website_with_headers":
-                    return await this.fetchWebsiteWithHeaders(args.url, args.headers);
+                    return await this.fetchWebsiteWithHeaders(
+                        args.url, 
+                        args.headers, 
+                        args.extractContent, 
+                        args.extractionType, 
+                        args.selectors, 
+                        args.returnRawHtml
+                    );
                 case "fetch_api_endpoint":
-                    return await this.fetchApiEndpoint(args.url, args.method, args.headers, args.body);
+                    return await this.fetchApiEndpoint(
+                        args.url, 
+                        args.method, 
+                        args.headers, 
+                        args.body,
+                        args.responseType,
+                        args.timeout
+                    );
                 default:
                     throw new Error(`Unknown tool: ${name}`);
             }
@@ -218,17 +302,46 @@ class WebsiteFetcherMCPServer {
         }
     }
 
-    async fetchWebsite(url) {
+    async fetchWebsite(url, extractContent = false, extractionType = 'article', selectors = {}, returnRawHtml = false) {
         const response = await this.makeRequest(url);
 
         if (response.status >= 200 && response.status < 300) {
-            return {
-                content: [
-                    {
+            let responseContent = [];
+            
+            if (extractContent) {
+                let extractedContent;
+                
+                if (extractionType === 'structured' && Object.keys(selectors).length > 0) {
+                    extractedContent = await this.extractStructuredContent(response.data, selectors);
+                    responseContent.push({
                         type: "text",
-                        text: `Website content for ${url}:\n\n${response.data}`
-                    }
-                ],
+                        text: `Extracted structured content from ${url}:\n\n${JSON.stringify(extractedContent, null, 2)}`
+                    });
+                } else {
+                    // Default to article extraction
+                    extractedContent = await this.extractArticleContent(response.data, url);
+                    responseContent.push({
+                        type: "text",
+                        text: `Extracted article content from ${url}:\n\nTitle: ${extractedContent.title}\n\n${extractedContent.content}`
+                    });
+                    
+                    // Add full extracted data in structured format
+                    responseContent.push({
+                        type: "text",
+                        text: `\nFull extracted data:\n${JSON.stringify(extractedContent, null, 2)}`
+                    });
+                }
+            }
+            
+            if (!extractContent || returnRawHtml) {
+                responseContent.push({
+                    type: "text",
+                    text: `${!extractContent ? 'Website content' : 'Raw HTML'} for ${url}:\n\n${response.data}`
+                });
+            }
+            
+            return {
+                content: responseContent,
                 isError: false
             };
         } else {
@@ -236,17 +349,46 @@ class WebsiteFetcherMCPServer {
         }
     }
 
-    async fetchWebsiteWithHeaders(url, customHeaders = {}) {
+    async fetchWebsiteWithHeaders(url, customHeaders = {}, extractContent = false, extractionType = 'article', selectors = {}, returnRawHtml = false) {
         const response = await this.makeRequest(url, { headers: customHeaders });
 
         if (response.status >= 200 && response.status < 300) {
-            return {
-                content: [
-                    {
+            let responseContent = [];
+            
+            if (extractContent) {
+                let extractedContent;
+                
+                if (extractionType === 'structured' && Object.keys(selectors).length > 0) {
+                    extractedContent = await this.extractStructuredContent(response.data, selectors);
+                    responseContent.push({
                         type: "text",
-                        text: `Website content for ${url} (with custom headers):\n\n${response.data}`
-                    }
-                ],
+                        text: `Extracted structured content from ${url} (with custom headers):\n\n${JSON.stringify(extractedContent, null, 2)}`
+                    });
+                } else {
+                    // Default to article extraction
+                    extractedContent = await this.extractArticleContent(response.data, url);
+                    responseContent.push({
+                        type: "text",
+                        text: `Extracted article content from ${url} (with custom headers):\n\nTitle: ${extractedContent.title}\n\n${extractedContent.content}`
+                    });
+                    
+                    // Add full extracted data in structured format
+                    responseContent.push({
+                        type: "text",
+                        text: `\nFull extracted data:\n${JSON.stringify(extractedContent, null, 2)}`
+                    });
+                }
+            }
+            
+            if (!extractContent || returnRawHtml) {
+                responseContent.push({
+                    type: "text",
+                    text: `${!extractContent ? 'Website content' : 'Raw HTML'} for ${url} (with custom headers):\n\n${response.data}`
+                });
+            }
+            
+            return {
+                content: responseContent,
                 isError: false
             };
         } else {
@@ -254,42 +396,132 @@ class WebsiteFetcherMCPServer {
         }
     }
 
-    async fetchApiEndpoint(url, method = 'GET', customHeaders = {}, body = null) {
+    async fetchApiEndpoint(url, method = 'GET', customHeaders = {}, body = null, responseType = 'auto', timeout = 30000) {
         const options = {
             method: method,
-            headers: customHeaders
+            headers: customHeaders,
+            timeout: timeout
         };
 
         if (body) {
             options.body = body;
         }
 
-        const response = await this.makeRequest(url, options);
+        try {
+            const response = await this.makeRequest(url, options);
+            
+            // Add response headers information
+            const headerInfo = Object.entries(response.headers)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n');
+                
+            if (response.status >= 200 && response.status < 300) {
+                let responseText;
+                let contentType = '';
+                
+                // Determine content type from headers or by inspection
+                if (response.headers['content-type']) {
+                    contentType = response.headers['content-type'].toLowerCase();
+                }
+                
+                // Process based on responseType preference
+                if (responseType === 'json' || (responseType === 'auto' && 
+                    (contentType.includes('application/json') || contentType.includes('json')))) {
+                    try {
+                        const jsonData = JSON.parse(response.data);
+                        responseText = JSON.stringify(jsonData, null, 2);
+                    } catch (error) {
+                        if (responseType === 'json') {
+                            return {
+                                content: [
+                                    {
+                                        type: "text",
+                                        text: `API response from ${url}:\nStatus: ${response.status}\n\nResponse is not valid JSON: ${error.message}\n\nRaw response:\n${response.data.substring(0, 1000)}${response.data.length > 1000 ? '...(truncated)' : ''}`
+                                    }
+                                ],
+                                isError: true
+                            };
+                        } else {
+                            responseText = response.data;
+                        }
+                    }
+                } else {
+                    responseText = response.data;
+                }
 
-        if (response.status >= 200 && response.status < 300) {
-            let responseText;
-            try {
-                // Try to parse as JSON for pretty formatting
-                const jsonData = JSON.parse(response.data);
-                responseText = JSON.stringify(jsonData, null, 2);
-            } catch {
-                // If not JSON, return as is
-                responseText = response.data;
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `API response from ${url}:\nStatus: ${response.status}\nMethod: ${method}\n\nHeaders:\n${headerInfo}\n\nResponse Body:\n${responseText}`
+                        }
+                    ],
+                    isError: false
+                };
+            } else {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `API request failed:\nURL: ${url}\nStatus: ${response.status}\nMethod: ${method}\n\nHeaders:\n${headerInfo}\n\nError Response:\n${response.data}`
+                        }
+                    ],
+                    isError: true
+                };
             }
-
+        } catch (error) {
             return {
                 content: [
                     {
                         type: "text",
-                        text: `API response from ${url}:\nStatus: ${response.status}\n\n${responseText}`
+                        text: `API request error: ${error.message}\nURL: ${url}\nMethod: ${method}`
                     }
                 ],
-                isError: false
+                isError: true
             };
-        } else {
-            throw new Error(`API request failed: HTTP ${response.status} - ${response.data}`);
         }
     }
+
+    async extractArticleContent(html, url) {
+        const dom = new JSDOM(html, { url });
+        const reader = new Readability(dom.window.document);
+        const article = reader.parse();
+        
+        return {
+            title: article.title,
+            content: article.textContent,
+            excerpt: article.excerpt,
+            siteName: article.siteName,
+            byline: article.byline
+        };
+    }
+
+    async extractStructuredContent(html, selectors) {
+        const $ = cheerio.load(html);
+        const result = {};
+        
+        if (selectors.title) {
+            result.title = $(selectors.title).text().trim();
+        }
+        
+        if (selectors.content) {
+            result.content = $(selectors.content).text().trim();
+        }
+        
+        if (selectors.metadata) {
+            result.metadata = {};
+            selectors.metadata.forEach(selector => {
+                const el = $(selector);
+                const key = el.attr('property') || el.attr('name') || selector;
+                result.metadata[key] = el.text().trim() || el.attr('content');
+            });
+        }
+        
+        return result;
+    }
+
+    // Note: The fetchCuratedContent method has been removed as its functionality
+    // has been integrated into fetchWebsite and fetchWebsiteWithHeaders
 
     async handleRequest(request) {
         const { method, params } = request;
@@ -341,7 +573,7 @@ class WebsiteFetcherMCPServer {
                                 .then(result => this.sendResponse(request.id, result))
                                 .catch(error => this.sendError(request.id, error));
                         } catch (error) {
-                            // Invalid XML, ignore
+                            // Invalid JSON, ignore
                         }
                     }
                 }
