@@ -175,15 +175,14 @@ http://localhost:4000/docs
 
 ## Project Roadmap
 
-### Cross-Platform Support
-- [ ] Convert PowerShell scripts to cross-platform shell scripts
-- [ ] Create separate startup scripts for Linux/macOS
-- [ ] ...⌛
-
-### Agentic Scenarios
+### New Features
+- [ ] Support streaming responses from MCP servers
 - [ ] Add pre-configured agent scenarios:
   - [ ] Research Assistant
   - ...⌛
+- [ ] Convert PowerShell scripts to cross-platform shell scripts
+- [ ] Create separate startup scripts for Linux/macOS
+- [ ] ...⌛
 
 ### Future Considerations
 - Multi-model support (running multiple models simultaneously)
