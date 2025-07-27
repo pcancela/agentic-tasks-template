@@ -60,13 +60,6 @@ def run_query(query: str):
         data_crew = Crew(
             agents=[worker_agent],
             tasks=[processing_task],
-            # memory=True,
-            # embedder={
-            #     "provider": "huggingface",
-            #     "config": {
-            #         "model": "mixedbread-ai/mxbai-embed-large-v1", # https://huggingface.co/mixedbread-ai/mxbai-embed-large-v1
-            #     }
-            # },
             verbose=False
         )
     
