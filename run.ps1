@@ -19,7 +19,7 @@ function DetectGPU {
     # Check for NVIDIA GPU
     $nvidiaGPU = $false
     try {
-        $nvidiaOutput = nvidia-smi 2>$null
+        nvidia-smi 2>$null
         if ($LASTEXITCODE -eq 0) {
             $nvidiaGPU = $true
             Write-Host "✓ NVIDIA GPU detected" -ForegroundColor Green
@@ -43,7 +43,7 @@ function DetectGPU {
     # Check Docker GPU support
     $dockerGPU = $false
     try {
-        $dockerTest = docker run --rm --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark 2>$null
+        docker run --rm --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark 2>$null
         if ($LASTEXITCODE -eq 0) {
             $dockerGPU = $true
             Write-Host "✓ Docker GPU support available" -ForegroundColor Green
@@ -268,7 +268,7 @@ elseif ($mode -eq "local") {
     # Check if Ollama is running locally
     $ollamaRunning = $false
     try {
-        $response = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -ErrorAction SilentlyContinue
+        Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get | Out-Null
         $ollamaRunning = $true
         Write-Host "✓ Ollama is running" -ForegroundColor Green
     } catch {
@@ -291,7 +291,7 @@ elseif ($mode -eq "local") {
     $modelAvailable = $false
     if ($ollamaRunning) {
         try {
-            $models = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get -ErrorAction SilentlyContinue
+            $models = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -Method Get
             $modelAvailable = $models.models | Where-Object { $_.name -eq $model -or $_.name -eq "$model`:latest" } | Select-Object -First 1
             if ($modelAvailable) {
                 Write-Host "✓ $model model is available" -ForegroundColor Green
