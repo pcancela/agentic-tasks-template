@@ -165,8 +165,7 @@ http://localhost:4000/docs
 
 ### AI and Machine Learning
 - [Hugging Face Models](https://huggingface.co/models) - Pre-trained models and datasets
-- [LangChain Documentation](https://python.langchain.com/docs/get_started/introduction) - Framework for LLM applications
-- [Model Context Protocol (MCP)](https://microsoft.github.io/vscode-extension-samples/mcp-sample/) - Tool integration protocol
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/overview/) - Tool integration protocol
 
 ### Tutorials and Examples
 - [CrewAI Docs](https://docs.crewai.com/en/introduction) - CrewAI Documentation
